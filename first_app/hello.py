@@ -1,6 +1,7 @@
 
 import os
 import json
+import jwt
 from flask import Flask, request, render_template
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
@@ -21,6 +22,7 @@ from . import db
 db.init_app(app)
 
 
+SECRET = "frefrfrefrenfnrenfffdnvfvibrerberfn"
 from .db import get_db
 
 @app.route("/", methods=['GET', 'POST'])
@@ -61,24 +63,27 @@ def login_required(f):
     @wraps(f)
     def _wrapper(*args, **kwargs):
 
-        user_id = kwargs.get("user_id")
+        user_id = int(kwargs.get("user_id"))
         # JSON WEB TOKEN 
-        auth_user_id = request.headers.get("Authorization")
+        access_token = request.headers.get("Authorization")
+        payload = jwt.decode(access_token, SECRET, algorithms=["HS256"])
+        token_user_id = payload["user_id"]
+
         # 1) Взяти токен з headers Authorization.
         # 2) Валідувати токен за допомогою бібліотек.
         # 3) Дістати user_id з payload і зробити перевірки.
-        if not auth_user_id or user_id != auth_user_id:
+        if not token_user_id or user_id != token_user_id:
             return {"error": "Користувач не авторизований"}, 403
         db = get_db()
         user = db.execute(
             "SELECT * FROM user WHERE id = ?",
-            (auth_user_id,),
+            (token_user_id,),
         ).fetchone()
 
         if not user:
             return {"error": f"Користувач не існує  {user_id}"}, 404
 
-        if int(auth_user_id) != user["id"]:
+        if int(token_user_id) != user["id"]:
             return {"error": "Користувач запитує не свою інформацію"}, 403
 
         return f(*args, **kwargs)
@@ -108,7 +113,9 @@ def login_api():
         return {"error": f"Паролі не співпадають {income_phone_number}"}, 404
 
     # user_id має знаходитись в середині JWT.
-    return {"access_token": "df"}, 200
+    token_data = {"user_id": user["id"]}
+    access_token = jwt.encode(token_data, SECRET, algorithm='HS256')
+    return {"access_token": access_token}, 200
 
 # J
 
