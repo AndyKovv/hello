@@ -39,6 +39,7 @@ def index():
         }
         return render_template("index.html", income_form_data=_data)
 
+# Add comment to the api
 @app.route("/api/v1/register-user", methods=['POST'])
 def register_user_api():
     data = request.json
