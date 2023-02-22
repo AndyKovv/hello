@@ -6,7 +6,7 @@ from flask import Flask, request, render_template
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
 from flask import g, request, redirect, url_for
-
+from first_app.models import User
 app = Flask(__name__, template_folder='templates')
 app.config.from_mapping(
     SECRET_KEY='dev',
@@ -23,7 +23,7 @@ db.init_app(app)
 
 
 SECRET = "frefrfrefrenfnrenfffdnvfvibrerberfn"
-from .db import get_db
+# from .db import get_db
 
 @app.route("/", methods=['GET', 'POST'])
 def index():
@@ -101,6 +101,7 @@ def login_api():
         return "", 401
 
     db = get_db()
+    # Переписати в себе в проекті на ORM
     user = db.execute(
         "SELECT * FROM user WHERE phone_number = ?",
         (income_phone_number,),
@@ -116,8 +117,6 @@ def login_api():
     token_data = {"user_id": user["id"]}
     access_token = jwt.encode(token_data, SECRET, algorithm='HS256')
     return {"access_token": access_token}, 200
-
-# J
 
 @app.route("/api/v1/user-info/<user_id>", methods=['GET'])
 # @is_authenticated https://pythonworld.ru/osnovy/dekoratory.html
@@ -140,14 +139,29 @@ def user_info_api(user_id):
 @app.route("/api/v1/who-i-am/<user_id>", methods=['GET'])
 @login_required
 def api_for_who_i_am(user_id):
-    db = get_db()
-    user = db.execute(
-        "SELECT * FROM user WHERE id = ?",
-        (user_id,),
-    ).fetchone()
+
+    # db = get_db()
+    # user = db.execute(
+    #     "SELECT * FROM user WHERE id = ?",
+    #     (user_id,),
+    # ).fetchone()
+
+    # https://docs.sqlalchemy.org/en/14/orm/query.html#sqlalchemy.orm.Query -> вивчити
+    user = User.query.filter(User.id == user_id).one()
     return {
-        "i_am": f"{user['first_name']} {user['second_name']}"
+        "i_am": user.full_name()
     }, 200
+
+@app.route("/api/v1/show-all-users")
+def show_all_users_api():
+    users = User.query.all()
+    users_list = []
+    for user in users:
+        users_list.append({
+            "id": user.id,
+            "full_name": user.full_name(),
+        })
+    return users_list
 
 @app.route("/hello")
 # @is_authenticated
