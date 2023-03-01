@@ -50,20 +50,18 @@ def register_user_api():
     second_name = data["second_name"]
     password = data["password"]
 
-    db = get_db()
-    db.execute(
+    _db = db.get_db()
+    _db.execute(
         "INSERT INTO user (phone_number, first_name, second_name, password) VALUES (?, ?, ?, ?)",
         (phone_number, first_name, second_name, generate_password_hash(password)),
     )
-    db.commit()
+    _db.commit()
     return {}, 200
 
 
 def login_required(f):
     @wraps(f)
     def _wrapper(*args, **kwargs):
-
-        user_id = int(kwargs.get("user_id"))
         # JSON WEB TOKEN 
         access_token = request.headers.get("Authorization")
         payload = jwt.decode(access_token, SECRET, algorithms=["HS256"])
@@ -72,10 +70,10 @@ def login_required(f):
         # 1) Взяти токен з headers Authorization.
         # 2) Валідувати токен за допомогою бібліотек.
         # 3) Дістати user_id з payload і зробити перевірки.
-        if not token_user_id or user_id != token_user_id:
+        if not token_user_id:
             return {"error": "Користувач не авторизований"}, 403
-        db = get_db()
-        user = db.execute(
+        _db = db.get_db()
+        user = _db.execute(
             "SELECT * FROM user WHERE id = ?",
             (token_user_id,),
         ).fetchone()
@@ -83,9 +81,7 @@ def login_required(f):
         if not user:
             return {"error": f"Користувач не існує  {user_id}"}, 404
 
-        if int(token_user_id) != user["id"]:
-            return {"error": "Користувач запитує не свою інформацію"}, 403
-
+        g.user_id = token_user_id
         return f(*args, **kwargs)
     return _wrapper
 
@@ -100,9 +96,9 @@ def login_api():
     if not income_phone_number or not income_password:
         return "", 401
 
-    db = get_db()
+    _db = db.get_db()
     # Переписати в себе в проекті на ORM
-    user = db.execute(
+    user = _db.execute(
         "SELECT * FROM user WHERE phone_number = ?",
         (income_phone_number,),
     ).fetchone()
@@ -136,15 +132,11 @@ def user_info_api(user_id):
     }, 200
 
 
-@app.route("/api/v1/who-i-am/<user_id>", methods=['GET'])
+@app.route("/api/v1/who-i-am/<int:user_id>", methods=['GET'])
 @login_required
 def api_for_who_i_am(user_id):
-
-    # db = get_db()
-    # user = db.execute(
-    #     "SELECT * FROM user WHERE id = ?",
-    #     (user_id,),
-    # ).fetchone()
+    if user_id != g.user_id:
+        return {"error": "Requested data is not yours"}
 
     # https://docs.sqlalchemy.org/en/14/orm/query.html#sqlalchemy.orm.Query -> вивчити
     user = User.query.filter(User.id == user_id).one()
